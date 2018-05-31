@@ -9,13 +9,22 @@ import (
 )
 
 func parse(s string) {
+/*
     defer func() {
         if r := recover(); r != nil {
             suggestions = []prompt.Suggest{}
         }
     }()
+*/
+    showStructArgumentPrompt = false
+
     var token Token
     var tokenValue string
+    
+    var methodToCall reflect.Value
+    var methodToCallType reflect.Type
+
+    argumentCount := 0
 
     currentValue = reflect.ValueOf(&m).Elem()
     getFields(currentValue)
@@ -33,31 +42,38 @@ func parse(s string) {
 
         switch token.Type {
         case TOKEN_DOT:
-//            fmt.Printf("TOKEN_DOT (%+v)\n", tokenValue)
             currentValue = reflect.Indirect(currentValue.FieldByName(currentField))
             fields = append(fields, currentField)
             getFields(currentValue)
         case TOKEN_PATH_ELEMENT:
             currentField = tokenValue
-//            fmt.Printf("PATH_ELEMENT (%+v)\n", tokenValue)
         case TOKEN_METHOD:
-//            fmt.Printf("METHOD (%+v)\n", tokenValue)
+            methodToCall = currentValue.MethodByName(tokenValue)
+            methodToCallType = methodToCall.Type()
+        case TOKEN_COMMA:
+            if !showStructArgumentPrompt {
+                argumentCount += 1
+            }
         case TOKEN_METHOD_ARGUMENT:
-//            fmt.Printf("METHOD_ARGUMENT (%+v)\n", tokenValue)
         case TOKEN_FIELD:
-//            fmt.Printf("TOKEN_FIELD (%+v)\n", tokenValue)
         case TOKEN_FIELD_VALUE:
-//            fmt.Printf("TOKEN_FIELD_VALUE (%+v)\n", tokenValue)
         case TOKEN_LEFT_CURLY_BRACKET:
-            
+            showStructArgumentPrompt = true
+            structArgumentPrompt(methodToCallType.In(argumentCount))
+        case TOKEN_RIGHT_CURLY_BRACKET:            
         }
     }
 }
 
 func completer(t prompt.Document) []prompt.Suggest {
     parse(t.TextBeforeCursor())
-    p := strings.Split(t.TextBeforeCursor(), "(")
-	return prompt.FilterHasPrefix(suggestions, p[0], true)
+
+    if !showStructArgumentPrompt {
+        p := strings.Split(t.TextBeforeCursor(), "(")
+    	return prompt.FilterHasPrefix(suggestions, p[0], true)
+    } else {
+        return suggestions
+    }
 }
 
 // TODO: encapsulate
@@ -66,8 +82,18 @@ var currentValue reflect.Value
 var currentField string
 var fields []string
 var m Modules
-var promptForStruct bool
+var showStructArgumentPrompt bool
 
+func structArgumentPrompt(arg reflect.Type) {
+    fmt.Println(arg.NumField())
+    suggestions = make([]prompt.Suggest, arg.NumField())
+    for i := 0; i < arg.NumField(); i++ {
+        suggestions[i] = prompt.Suggest{
+            Text: arg.Field(i).Name,
+            Description: arg.Field(i).Type.String(),
+        }
+    }
+}
 
 func getFields(s reflect.Value) {
     suggestions = make([]prompt.Suggest, s.NumField() + s.NumMethod())
@@ -90,8 +116,6 @@ func getFields(s reflect.Value) {
             Description: methodSignature(typeOfT.Method(i).Type),
         }
     }
-
-//    fmt.Printf("%+v\n", suggestions)
 }
 
 func methodSignature(m reflect.Type) string {

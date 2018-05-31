@@ -71,6 +71,7 @@ type Modules struct {
     Social Social
 }
 
+
 func main() {
     m = Modules{}
     m.Assets.Item = &Item{}
