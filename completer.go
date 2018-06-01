@@ -11,8 +11,10 @@ import (
 type completer struct {
 	i interface{}
 
-	suggestions []prompt.Suggest
-	fields      []string
+	suggestions               []prompt.Suggest
+	structArgumentSuggestions []prompt.Suggest
+
+	fields []string
 }
 
 func (c *completer) complete(t prompt.Document) []prompt.Suggest {
@@ -26,11 +28,15 @@ func (c *completer) complete(t prompt.Document) []prompt.Suggest {
 	var tokenValue string
 
 	var currentField string
+	var methodToCall reflect.Value
+	var methodToCallType reflect.Type
 
 	currentValue := reflect.ValueOf(c.i)
-	fmt.Printf("%v\n", c.suggestions)
 	c.getFields(currentValue)
-	fmt.Printf("%v\n", c.suggestions)
+	c.fields = []string{}
+
+	argumentCount := 0
+	showStructArgumentPrompt := false
 
 	lexer := NewLexer(t.TextBeforeCursor())
 
@@ -45,20 +51,56 @@ func (c *completer) complete(t prompt.Document) []prompt.Suggest {
 		switch token.Type {
 		case TOKEN_DOT:
 			currentValue = reflect.Indirect(currentValue.FieldByName(currentField))
+			if currentValue.Kind() == reflect.Interface {
+				currentValue = currentValue.Elem()
+			}
 			c.fields = append(c.fields, currentField)
 			c.getFields(currentValue)
+		case TOKEN_COMMA:
+			if !showStructArgumentPrompt {
+				argumentCount += 1
+			}
 		case TOKEN_PATH_ELEMENT:
 			currentField = tokenValue
+		case TOKEN_METHOD:
+			methodToCall = currentValue.MethodByName(tokenValue)
+			methodToCallType = methodToCall.Type()
+		case TOKEN_LEFT_CURLY_BRACKET:
+			c.structArgumentPrompt(methodToCallType.In(argumentCount))
+			showStructArgumentPrompt = true
+		case TOKEN_RIGHT_CURLY_BRACKET:
+			showStructArgumentPrompt = false
+			argumentCount += 1
 		}
 	}
 
+	c.fields = []string{}
 	p := strings.Split(t.TextBeforeCursor(), "(")
 
+	if showStructArgumentPrompt {
+		return c.structArgumentSuggestions
+	}
 	return prompt.FilterHasPrefix(c.suggestions, p[0], true)
 }
 
+func (c *completer) structArgumentPrompt(arg reflect.Type) {
+	var name string
+
+	c.structArgumentSuggestions = []prompt.Suggest{}
+	for i := 0; i < arg.NumField(); i++ {
+		name = arg.Field(i).Name
+		if strings.ToUpper(name[0:1]) == name[0:1] {
+			c.structArgumentSuggestions = append(c.structArgumentSuggestions, prompt.Suggest{
+				Text:        arg.Field(i).Name,
+				Description: arg.Field(i).Type.String(),
+			})
+		}
+	}
+}
+
 func (c *completer) getFields(s reflect.Value) {
-	c.suggestions = make([]prompt.Suggest, s.NumField()+s.NumMethod())
+	c.suggestions = []prompt.Suggest{}
+	var name string
 
 	typeOfT := s.Type()
 	prefix := strings.Join(c.fields, ".")
@@ -66,20 +108,23 @@ func (c *completer) getFields(s reflect.Value) {
 		prefix += "."
 	}
 	for i := 0; i < s.NumField(); i++ {
-		c.suggestions[i] = prompt.Suggest{
-			Text: prefix + typeOfT.Field(i).Name,
-			/*            Description: typeOfT.Field(i).Name,*/
+		name = typeOfT.Field(i).Name
+		if strings.ToUpper(name[0:1]) == name[0:1] {
+			c.suggestions = append(c.suggestions, prompt.Suggest{
+				Text: prefix + name,
+			})
 		}
 	}
 
 	for i := 0; i < s.NumMethod(); i++ {
-		c.suggestions[s.NumField()+i] = prompt.Suggest{
-			Text:        prefix + typeOfT.Method(i).Name + "()",
-			Description: methodSignature(typeOfT.Method(i).Type),
+		name = typeOfT.Method(i).Name
+		if strings.ToUpper(name[0:1]) == name[0:1] {
+			c.suggestions = append(c.suggestions, prompt.Suggest{
+				Text:        prefix + typeOfT.Method(i).Name + "()",
+				Description: methodSignature(typeOfT.Method(i).Type),
+			})
 		}
 	}
-
-	fmt.Printf("%v\n", c.suggestions)
 }
 
 func methodSignature(m reflect.Type) string {

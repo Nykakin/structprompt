@@ -170,13 +170,17 @@ func LexMethodComma(lexer *Lexer) LexFn {
 	return LexMethodArguments
 }
 
+func LexMethodRightCurlyBracket(lexer *Lexer) LexFn {
+	lexer.Pos += len(RIGHT_CURLY_BRACKET)
+	lexer.Emit(TOKEN_RIGHT_CURLY_BRACKET)
+	return LexMethodArguments
+}
+
 func LexStructFields(lexer *Lexer) LexFn {
 	for {
 		if strings.HasPrefix(lexer.InputToEnd(), RIGHT_CURLY_BRACKET) {
 			lexer.Emit(TOKEN_FIELD_VALUE)
-			lexer.Pos += len(RIGHT_CURLY_BRACKET)
-			lexer.Emit(TOKEN_RIGHT_CURLY_BRACKET)
-			return LexMethodComma
+			return LexMethodRightCurlyBracket
 		}
 		if strings.HasPrefix(lexer.InputToEnd(), COMMA) {
 			lexer.Emit(TOKEN_FIELD_VALUE)
