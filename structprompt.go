@@ -6,6 +6,9 @@ import (
 
 type structPrompt struct {
 	Prompt *prompt.Prompt
+
+	executor  executor
+	completer completer
 }
 
 func NewStructPrompt(i interface{}) structPrompt {
@@ -17,6 +20,10 @@ func NewStructPrompt(i interface{}) structPrompt {
 	}
 }
 
-func (s structPrompt) Run() {
-	s.Prompt.Run()
+func (sp structPrompt) Execute(str string) {
+	sp.executor.execute(str)
+}
+
+func (sp structPrompt) Run() {
+	sp.Prompt.Run()
 }

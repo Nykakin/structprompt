@@ -17,7 +17,11 @@ type completer struct {
 	fields []string
 }
 
-func (c *completer) complete(t prompt.Document) []prompt.Suggest {
+type document interface {
+	TextBeforeCursor() string
+}
+
+func (c *completer) complete(t document) []prompt.Suggest {
 	defer func() {
 		if r := recover(); r != nil {
 			c.suggestions = []prompt.Suggest{}
