@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"git.modulus.eu/go/common/types/uuid"
+//	"git.modulus.eu/go/common/types/uuid"
 )
 
 type executor struct {
@@ -97,8 +97,10 @@ func convertArgument(argument reflect.Type, s string) reflect.Value {
 		s = strings.Trim(s, "\"")
 
 		switch argument.Name() {
+/*
 		case "UUID":
 			return reflect.ValueOf(uuid.FromString(s))
+*/
 		default:
 			return reflect.ValueOf(s)
 		}

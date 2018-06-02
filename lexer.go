@@ -26,7 +26,6 @@ const (
 	TOKEN_FIELD_VALUE
 )
 
-const EOF rune = 0
 const (
 	LEFT_BRACKET        = "("
 	LEFT_CURLY_BRACKET  = "{"
@@ -56,7 +55,11 @@ type Lexer struct {
 type LexFn func(*Lexer) LexFn
 
 func (this *Lexer) Emit(tokenType TokenType) {
-	this.Tokens <- Token{Type: tokenType, Value: this.Input[this.Start:this.Pos]}
+	token := Token{Type: tokenType, Value: strings.TrimSpace(this.Input[this.Start:this.Pos])}
+    if tokenType == TOKEN_EOF {
+        token.Value = ""
+    }
+	this.Tokens <- token
 	this.Start = this.Pos
 }
 
@@ -82,6 +85,10 @@ func (this *Lexer) Inc() {
 
 func (this *Lexer) InputToEnd() string {
 	return this.Input[this.Pos:]
+}
+
+func (this *Lexer) InputPrevious() string {
+	return this.Input[this.Pos-1:this.Pos]
 }
 
 func (this *Lexer) IsEOF() bool {
@@ -140,7 +147,9 @@ func LexMethod(lexer *Lexer) LexFn {
 func LexMethodArguments(lexer *Lexer) LexFn {
 	for {
 		if strings.HasPrefix(lexer.InputToEnd(), RIGHT_BRACKET) {
-			lexer.Emit(TOKEN_METHOD_ARGUMENT)
+            if lexer.InputPrevious() != "(" { 
+                lexer.Emit(TOKEN_METHOD_ARGUMENT)
+            }
 			lexer.Pos += len(RIGHT_BRACKET)
 			lexer.Emit(TOKEN_RIGHT_BRACKET)
 			return LexEnd
